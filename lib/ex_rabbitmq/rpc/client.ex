@@ -68,9 +68,9 @@ defmodule ExRabbitMQ.RPC.Client do
   *For more information about the usage, also check the documentation of the function `c:setup_client/3`.*
   """
   @callback setup_client(connection_config :: connection, state :: term) ::
-    {:ok, new_state} |
-    {:error, reason :: term, new_state}
-    when new_state: term, connection: atom | %ExRabbitMQ.Connection.Config{}
+              {:ok, new_state}
+              | {:error, reason :: term, new_state}
+            when new_state: term, connection: atom | %ExRabbitMQ.Connection.Config{}
 
   @doc """
   Opens a RabbitMQ connection & channel and configures the queue for receiving responses.
@@ -134,9 +134,9 @@ defmodule ExRabbitMQ.RPC.Client do
   `ExRabbitMQ.Consumer.xrmq_init/3`.*
   """
   @callback setup_client(connection_config :: connection, state :: term, opts :: keyword) ::
-    {:ok, new_state} |
-    {:error, reason :: term, new_state}
-    when new_state: term, connection: atom | %ExRabbitMQ.Connection.Config{}
+              {:ok, new_state}
+              | {:error, reason :: term, new_state}
+            when new_state: term, connection: atom | %ExRabbitMQ.Connection.Config{}
 
   @doc """
   Publishes a request message with `payload` to specified exchange and queue.
@@ -171,9 +171,14 @@ defmodule ExRabbitMQ.RPC.Client do
   * `{:error, reason}` - the request has failed to be published with the returned `reason`.
 
   """
-  @callback request(payload :: binary, exchange :: String.t, routing_key :: String.t, opts :: keyword) ::
-    {:ok, correlation_id :: String.t} |
-    {:error, reason :: term}
+  @callback request(
+              payload :: binary,
+              exchange :: String.t(),
+              routing_key :: String.t(),
+              opts :: keyword
+            ) ::
+              {:ok, correlation_id :: String.t()}
+              | {:error, reason :: term}
 
   @doc """
   Invoked when a message has been received from RabbitMQ which is a response message from the RPC server for a request
@@ -194,15 +199,15 @@ defmodule ExRabbitMQ.RPC.Client do
 
   This callback should return a value, as in `GenServer.handle_info/2`.
   """
-  @callback handle_response(response :: response, correlation_id :: String.t, state :: term) ::
-    {:noreply, new_state} |
-    {:noreply, new_state, timeout | :hibernate} |
-    {:stop, reason :: term, new_state}
-    when new_state: term, response: {:ok, payload :: String.t} | {:error, reason :: term}
+  @callback handle_response(response :: response, correlation_id :: String.t(), state :: term) ::
+              {:noreply, new_state}
+              | {:noreply, new_state, timeout | :hibernate}
+              | {:stop, reason :: term, new_state}
+            when new_state: term,
+                 response: {:ok, payload :: String.t()} | {:error, reason :: term}
 
   defmacro __using__(_) do
     quote location: :keep do
-
       @behaviour ExRabbitMQ.RPC.Client
 
       use ExRabbitMQ.Consumer, GenServer
@@ -213,11 +218,15 @@ defmodule ExRabbitMQ.RPC.Client do
       @doc false
       def setup_client(connection_config, state, opts \\ []) do
         queue_prefix = Keyword.get(opts, :queue_prefix, "rpc.gen-")
-        queue_config = opts[:queue] || %QueueConfig{
-          queue: queue_prefix <> UUID.uuid4(),
-          queue_opts: [exclusive: true, auto_delete: true],
-          consume_opts: [no_ack: false]
-        }
+
+        queue_config =
+          opts[:queue] ||
+            %QueueConfig{
+              queue: queue_prefix <> UUID.uuid4(),
+              queue_opts: [exclusive: true, auto_delete: true],
+              consume_opts: [no_ack: false]
+            }
+
         xrmq_init(connection_config, queue_config, state)
       end
 
@@ -225,13 +234,12 @@ defmodule ExRabbitMQ.RPC.Client do
       def request(payload, exchange, routing_key, opts \\ []) do
         expiration = get_expiration(opts[:expiration])
         correlation_id = get_correlation_id(opts[:correlation_id])
-        with \
-          {:ok, channel} <- get_channel(),
-          {:ok, reply_to} <- get_reply_to_queue(),
-          opts <- get_publish_options(opts, correlation_id, reply_to, expiration),
-          :ok <- Basic.publish(channel, exchange, routing_key, payload, opts),
-          _ <- setup_expiration(correlation_id, expiration)
-        do
+
+        with {:ok, channel} <- get_channel(),
+             {:ok, reply_to} <- get_reply_to_queue(),
+             opts <- get_publish_options(opts, correlation_id, reply_to, expiration),
+             :ok <- Basic.publish(channel, exchange, routing_key, payload, opts),
+             _ <- setup_expiration(correlation_id, expiration) do
           {:ok, correlation_id}
         else
           {:error, reason} -> {:error, reason}
@@ -262,7 +270,9 @@ defmodule ExRabbitMQ.RPC.Client do
           {:ok, ref} ->
             Process.cancel_timer(ref)
             handle_response({:ok, payload}, correlation_id, state)
-          _ -> {:noreply, state}
+
+          _ ->
+            {:noreply, state}
         end
       end
 
@@ -287,8 +297,13 @@ defmodule ExRabbitMQ.RPC.Client do
         opts
         |> Keyword.put(:correlation_id, correlation_id)
         |> Keyword.put(:reply_to, reply_to)
-        |> Keyword.put(:expiration, if(expiration > 0, do: to_string(expiration), else: :undefined))
-        |> Keyword.put_new_lazy(:timestamp, fn -> DateTime.utc_now() |> DateTime.to_unix(:millisecond) end)
+        |> Keyword.put(
+          :expiration,
+          if(expiration > 0, do: to_string(expiration), else: :undefined)
+        )
+        |> Keyword.put_new_lazy(:timestamp, fn ->
+          DateTime.utc_now() |> DateTime.to_unix(:millisecond)
+        end)
       end
 
       # Returns a default auto-generated correlation_id, if not specified.
@@ -304,32 +319,36 @@ defmodule ExRabbitMQ.RPC.Client do
       # on RabbitMQ has also expired.
       defp setup_expiration(correlation_id, expiration) when expiration > 0 do
         ref = Process.send_after(self(), {:expired, correlation_id}, expiration)
+
         get_expirations()
         |> Map.put(correlation_id, ref)
         |> save_expirations()
       end
+
       defp setup_expiration(_correlation_id, _expiration), do: :ignore
 
       @spec get_expirations() :: map
-      defp get_expirations, do: Process.get(:rpc_expirations, Map.new)
+      defp get_expirations, do: Process.get(:rpc_expirations, Map.new())
 
       @spec save_expirations(map) :: nil
       defp save_expirations(%{} = map), do: Process.put(:rpc_expirations, map)
 
-      @spec remove_expiration_id(String.t) :: {:ok, String.t} | {:error, :not_found}
+      @spec remove_expiration_id(String.t()) :: {:ok, String.t()} | {:error, :not_found}
       defp remove_expiration_id(correlation_id) do
         expirations = get_expirations()
+
         case expirations[correlation_id] do
-          nil -> {:error, :not_found}
+          nil ->
+            {:error, :not_found}
+
           ref when is_reference(ref) ->
             expirations
             |> Map.delete(correlation_id)
             |> save_expirations()
+
             {:ok, ref}
         end
       end
-
     end
   end
-
 end
