@@ -20,12 +20,12 @@ defmodule ExRabbitMQ.RPC.Mixfile do
 
   defp deps do
     [
+      {:uuid, "~> 1.1"},
+      {:exrabbitmq, "~> 2.11"},
       {:credo, "~> 0.8", runtime: false},
       {:dialyxir, "~> 0.5", runtime: false},
       {:ex_doc, "~> 0.18", runtime: false, override: true},
-      {:exrabbitmq, "~> 2.11"},
-      {:poison, "~> 3.1", only: :test},
-      {:uuid, "~> 1.1"}
+      {:poison, "~> 3.1", only: :test}
     ]
   end
 end
