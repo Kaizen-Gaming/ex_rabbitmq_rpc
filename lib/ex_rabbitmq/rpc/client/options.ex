@@ -27,6 +27,9 @@ defmodule ExRabbitMQ.RPC.Client.Options do
 
   @doc """
   Returns the `AMQP.Basic.publish` options.
+  
+  Sets the options for `correlation_id`, `reply_to` and `expiration` as specified in the arguments.
+  Also set the `timestamp` to the current time.
   """
   def get_publish_options(opts, correlation_id, reply_to, expiration) do
     expiration = if expiration > 0, do: to_string(expiration), else: :undefined
@@ -42,6 +45,8 @@ defmodule ExRabbitMQ.RPC.Client.Options do
 
   @doc """
   Returns the correlation_id for the request.
+  
+  Defaults to a random generated one.
   """
   def get_correlation_id(opts), do: do_get_correlation_id(opts[:correlation_id])
 
@@ -49,11 +54,29 @@ defmodule ExRabbitMQ.RPC.Client.Options do
   defp do_get_correlation_id(value), do: value
 
   @doc """
-  Returns the expiration time for the request.
+  Returns the expiration time in milliseconds for the request.
+  
+  Defaults to `5000` milliseconds.
   """
-  def get_expiration(opts) when is_list(opts), do: do_get_expiration(opts[:expiration])
+  def get_expiration(opts), do: do_get_expiration(opts[:expiration])
 
   defp do_get_expiration(value) when is_number(value) and value < 1, do: 0
   defp do_get_expiration(value) when is_number(value), do: value
   defp do_get_expiration(_), do: @default_expiration
+
+  @doc """
+  Returns the `from` process that the response should be replied to.
+  
+  Defaults to `nil`.
+  """
+  def get_call_from(opts), do: do_get_call_from(opts[:call_from])
+
+  defp do_get_call_from({pid, _tag} = from) when is_pid(pid), do: from
+  defp do_get_call_from(_), do: nil
+
+
+  @doc """
+  Sets in the options the `from` process that the response should be replied to.
+  """
+  def set_call_from(opts, from), do: Keyword.put(opts, :call_from, from)
 end

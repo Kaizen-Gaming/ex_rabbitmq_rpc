@@ -4,7 +4,7 @@ defmodule ExRabbitMQ.RPC.Mixfile do
   def project do
     [
       app: :ex_rabbitmq_rpc,
-      version: "1.0.0",
+      version: "1.1.0",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -24,7 +24,7 @@ defmodule ExRabbitMQ.RPC.Mixfile do
       {:exrabbitmq, "~> 2.11"},
       {:credo, "~> 0.8", runtime: false},
       {:dialyxir, "~> 0.5", runtime: false},
-      {:ex_doc, "~> 0.18", runtime: false, override: true},
+      {:ex_doc, "~> 0.19", runtime: false, override: true},
       {:poison, "~> 3.1", only: :test}
     ]
   end

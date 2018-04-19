@@ -8,7 +8,7 @@ defmodule ExRabbitMQ.RPC.Client do
   "tagged" with a `correlation_id` which the RPC server also includes in the response message, so that the RPC client
   can be track and relate it.
 
-  A typical implementation of this behavior is to call the `c:setup_client/2` on `GenServer.init/1` and then call the
+  A typical implementation of this behavior is to call the `c:setup_client/3` on `GenServer.init/1` and then call the
   `c:request/4` for sending request messages. When the response message is received the `c:handle_response/3` will be
   invoked.
   Make sure that before starting a `ExRabbitMQ.RPC.Client` to already run in your supervision tree the
@@ -39,7 +39,7 @@ defmodule ExRabbitMQ.RPC.Client do
     def handle_cast({:request_something, queue, value}, state) do
       payload = Poison.encode!(value)
       {:ok, _correlation_id} = request(payload, "", queue)
-      {:noreply, state}line
+      {:noreply, state}
     end
 
     def handle_response({:ok, payload}, correlation_id, state) do
@@ -149,7 +149,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
   * `:correlation_id` - if not specified, will be set to an auto-generated one (using `UUID.uuid4/0`),
   * `:reply_to` - cannot be overrided and will be always set as the queue name as configured
-                  with `c:setup_client/2` or `c:setup_client/3`,
+                  with `c:setup_client/3`,
   * `:timestamp` - if not specified, will be set to the current time,
   * `:expiration` - if not specified, will be set to 5000ms. For no expiration, it needs to be set to a value that
                     is less or equal than zero.
@@ -195,7 +195,7 @@ defmodule ExRabbitMQ.RPC.Client do
       @behaviour ExRabbitMQ.RPC.Client
 
       alias AMQP.Basic
-      alias ExRabbitMQ.RPC.Client.{ExpirationHandler, Options}
+      alias ExRabbitMQ.RPC.Client.{ExpirationHandler, Options, RequestTracking}
 
       use ExRabbitMQ.Consumer, GenServer
 
@@ -210,17 +210,27 @@ defmodule ExRabbitMQ.RPC.Client do
       def request(payload, exchange, routing_key, opts \\ []) do
         expiration = Options.get_expiration(opts)
         correlation_id = Options.get_correlation_id(opts)
+        from = Options.get_call_from(opts)
 
         with {:ok, channel} <- get_channel(),
              {:ok, reply_to} <- get_reply_to_queue(),
              opts <- Options.get_publish_options(opts, correlation_id, reply_to, expiration),
              :ok <- Basic.publish(channel, exchange, routing_key, payload, opts),
-             :ok <- ExpirationHandler.set(correlation_id, expiration) do
+             :ok <- ExpirationHandler.set(correlation_id, expiration),
+             :ok <- RequestTracking.set(correlation_id, from) do
           {:ok, correlation_id}
         else
           {:error, reason} -> {:error, reason}
           error -> {:error, error}
         end
+      end
+
+      @doc false
+      def request_sync(client, payload, exchange, routing_key, opts \\ []) do
+        expiration = Options.get_expiration(opts)
+        message = {payload, exchange, routing_key, opts}
+
+        GenServer.call(client, {:rpc_request_sync, message}, expiration + 1000)
       end
 
       @doc false
@@ -233,19 +243,26 @@ defmodule ExRabbitMQ.RPC.Client do
       # Receive the message that was send by `ExRabbitMQ.RPC.Client.ExpirationHandler.set/2` that informs the process that
       # the request message has expired on RabbitMQ.
       def handle_info({:expired, correlation_id}, state) do
-        case ExpirationHandler.cancel(correlation_id) do
-          :ok -> handle_response({:error, :expired}, correlation_id, state)
-          _ -> {:noreply, state}
+        do_handle_response({:error, :expired}, correlation_id, state)
+      end
+
+      @doc false
+      def handle_call({:rpc_request_sync, message}, from, state) do
+        {payload, exchange, routing_key, opts} = message
+        opts = Options.set_call_from(opts, from)
+
+        with {:ok, _correlation_id} <- request(payload, exchange, routing_key, opts) do
+          {:noreply, state}
+        else
+          error -> {:reply, error, state}
         end
       end
 
       @doc false
       # Receive the response message and calls the `c:handle_response/3` for further processing.
+      # If the response is related with a synchronous request, then reply to that process instead.
       def xrmq_basic_deliver(payload, %{correlation_id: correlation_id}, state) do
-        case ExpirationHandler.cancel(correlation_id) do
-          :ok -> handle_response({:ok, payload}, correlation_id, state)
-          _ -> {:noreply, state}
-        end
+        do_handle_response({:ok, payload}, correlation_id, state)
       end
 
       # Gets the channel information for the process dictionary.
@@ -261,6 +278,20 @@ defmodule ExRabbitMQ.RPC.Client do
         case xrmq_get_queue_config() do
           %{queue: queue} when queue != nil or queue != "" -> {:ok, queue}
           _ -> {:error, :no_queue}
+        end
+      end
+
+      defp do_handle_response(result, correlation_id, state) do
+        with :ok <- ExpirationHandler.cancel(correlation_id),
+             {:ok, from} <- RequestTracking.get_delete(correlation_id) do
+          GenServer.reply(from, result)
+          {:noreply, state}
+        else
+          {:error, :no_request_tracking} ->
+            handle_response(result, correlation_id, state)
+
+          _ ->
+            {:noreply, state}
         end
       end
     end

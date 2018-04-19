@@ -37,7 +37,7 @@ defmodule ExRabbitMQ.RPC.Client.ExpirationHandler do
         :ok
 
       _ ->
-        :error
+        {:error, :no_expiration}
     end
   end
 
