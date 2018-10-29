@@ -5,10 +5,12 @@ defmodule ExRabbitMQ.RPC.Client.RequestTracking do
 
   def get_delete(correlation_id) do
     case process_get() do
-      %{^correlation_id => from} = data ->
-        Map.delete(data, correlation_id) |> process_set()
+      %{^correlation_id => call_from} = data ->
+        data
+        |> Map.delete(correlation_id)
+        |> process_set()
 
-        {:ok, from}
+        {:ok, call_from}
 
       _ ->
         {:error, :no_request_tracking}
@@ -17,8 +19,8 @@ defmodule ExRabbitMQ.RPC.Client.RequestTracking do
 
   def set(_correlation_id, nil), do: :ok
 
-  def set(correlation_id, from) do
-    process_get() |> Map.put(correlation_id, from) |> process_set()
+  def set(correlation_id, call_from) do
+    process_get() |> Map.put(correlation_id, call_from) |> process_set()
 
     :ok
   end

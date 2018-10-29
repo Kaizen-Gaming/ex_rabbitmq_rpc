@@ -80,7 +80,6 @@ defmodule ExRabbitMQ.RPC.Client.Options do
   defp do_get_call_from({pid, _tag} = from) when is_pid(pid), do: from
   defp do_get_call_from(_), do: nil
 
-
   @doc """
   Sets in the options the `from` process that the response should be replied to.
   """
