@@ -205,7 +205,6 @@ defmodule ExRabbitMQ.RPC.Client do
     quote location: :keep do
       @behaviour ExRabbitMQ.RPC.Client
 
-      alias AMQP.Basic
       alias ExRabbitMQ.RPC.Client.{ExpirationHandler, Options, RequestTracking}
 
       use ExRabbitMQ.Consumer, GenServer
@@ -226,7 +225,7 @@ defmodule ExRabbitMQ.RPC.Client do
         with {:ok, channel} <- get_channel(),
              {:ok, reply_to} <- get_reply_to_queue(),
              opts <- Options.get_publish_options(opts, correlation_id, reply_to, expiration),
-             :ok <- Basic.publish(channel, exchange, routing_key, payload, opts),
+             :ok <- AMQP.Basic.publish(channel, exchange, routing_key, payload, opts),
              :ok <- ExpirationHandler.set(correlation_id, expiration),
              :ok <- RequestTracking.set(correlation_id, from) do
           {:ok, correlation_id}
@@ -251,8 +250,9 @@ defmodule ExRabbitMQ.RPC.Client do
       end
 
       @doc false
-      # Receive the message that was send by `ExRabbitMQ.RPC.Client.ExpirationHandler.set/2` that informs the process that
-      # the request message has expired on RabbitMQ.
+      # Receive the message that was send by `ExRabbitMQ.RPC.Client.ExpirationHandler.set/2` and inform the calling
+      # process the request message has expired on RabbitMQ (either nobody consumed the message or the consumer could
+      # not reply within the request timeout).
       def handle_info({:expired, correlation_id}, state) do
         do_handle_response({:error, :expired}, correlation_id, state)
       end

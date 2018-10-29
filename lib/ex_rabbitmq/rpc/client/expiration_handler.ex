@@ -13,8 +13,8 @@ defmodule ExRabbitMQ.RPC.Client.ExpirationHandler do
   @spec set(correlation_id :: String.t(), expiration :: number) :: :ok
   def set(correlation_id, expiration) when expiration > 0 do
     ref = Process.send_after(self(), {:expired, correlation_id}, expiration)
-
-    process_get() |> add_correlation_id(correlation_id, ref)
+    expirations = process_get()
+    add_correlation_id(expirations, correlation_id, ref)
 
     :ok
   end
@@ -27,7 +27,7 @@ defmodule ExRabbitMQ.RPC.Client.ExpirationHandler do
   This function should called when the `ExRabbitMQ.RPC.Client` process receives the response
   of the request.
   """
-  @spec cancel(String.t()) :: {:ok, String.t()} | :error
+  @spec cancel(String.t()) :: {:ok, String.t()} | {:error, :no_expiration}
   def cancel(correlation_id) do
     case process_get() do
       %{^correlation_id => ref} = expirations ->
