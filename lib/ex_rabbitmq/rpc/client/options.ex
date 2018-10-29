@@ -1,7 +1,7 @@
 defmodule ExRabbitMQ.RPC.Client.Options do
   @moduledoc false
 
-  alias ExRabbitMQ.Consumer.QueueConfig
+  alias ExRabbitMQ.Config.{Queue, Session}
 
   import UUID, only: [uuid4: 0]
 
@@ -12,16 +12,22 @@ defmodule ExRabbitMQ.RPC.Client.Options do
   @default_expiration 5000
 
   @doc """
-  Returns the `ExRabbitMQ.Consumer.QueueConfig` configuration for the consumer.
+  Returns the `ExRabbitMQ.Config.Session` configuration for the `reply-to` queue.
   """
-  def get_queue_config(opts) do
+  def get_session_config(opts) do
     queue_prefix = Keyword.get(opts, :queue_prefix, @default_queue_prefix)
+    queue_name = queue_prefix <> uuid4()
 
-    opts[:queue] ||
-      %QueueConfig{
-        queue: queue_prefix <> uuid4(),
-        queue_opts: [exclusive: true, auto_delete: true],
-        consume_opts: [no_ack: false]
+    opts[:session] ||
+      %Session{
+        queue: queue_name,
+        consume_opts: [no_ack: false],
+        declarations: [
+          {:queue, %Queue{
+            name: queue_name,
+            opts: [exclusive: true, auto_delete: true]
+          }}
+        ]
       }
   end
 

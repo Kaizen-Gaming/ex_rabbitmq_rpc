@@ -63,7 +63,7 @@ defmodule ExRabbitMQ.RPC.Server do
     port: 5672
   ```
 
-  The parameter `connection_config` can also be set to the struct `ExRabbitMQ.Connection.Config` which allows
+  The parameter `connection_config` can also be set to the struct `ExRabbitMQ.Config.Connection` which allows
   to programatically configure the connection without config.exs.
 
   The parameter `queue_config` specifies the configuration of the RabbitMQ queue to consume. If set to an atom,
@@ -91,12 +91,16 @@ defmodule ExRabbitMQ.RPC.Server do
   *For more information about the usage, also check the documentation of the function
   `ExRabbitMQ.Consumer.xrmq_init/3`.*
   """
-  @callback setup_server(connection_config :: connection, queue_config :: queue, state :: term) ::
-  {:ok, new_state} |
-  {:error, reason :: term, new_state}
-  when new_state: term,
-       connection: atom | %ExRabbitMQ.Connection.Config{},
-       queue: atom | %ExRabbitMQ.Consumer.QueueConfig{}
+  @callback setup_server(
+              connection_config :: connection,
+              session_config :: session,
+              state :: term
+            ) ::
+              {:ok, new_state}
+              | {:error, reason :: term, new_state}
+            when new_state: term,
+                 connection: atom | %ExRabbitMQ.Config.Connection{},
+                 session: atom | %ExRabbitMQ.Config.Session{}
 
   @doc """
   Responds to a request that was received through the `c:handle_request/3` callback.
@@ -119,9 +123,12 @@ defmodule ExRabbitMQ.RPC.Server do
   * `:ok` - when the response has been send successfully,
   * `{:error, reason}` - then the response has failed to be send with the returned `reason`.
   """
-  @callback respond(payload :: binary, metadata :: %{reply_to: String.t, correlation_id: String.t}) ::
-    :ok |
-    {:error, reason :: term}
+  @callback respond(
+              payload :: binary,
+              metadata :: %{reply_to: String.t(), correlation_id: String.t()}
+            ) ::
+              :ok
+              | {:error, reason :: term}
 
   @doc """
   Responds to a request that was received through the `c:handle_request/3` callback.
@@ -138,9 +145,9 @@ defmodule ExRabbitMQ.RPC.Server do
 
   *For more information about the usage, also check the documentation of the function `respond/2`.*
   """
-  @callback respond(payload :: binary, routing_key :: String.t, correlation_id :: String.t) ::
-    :ok |
-    {:error, reason :: term}
+  @callback respond(payload :: binary, routing_key :: String.t(), correlation_id :: String.t()) ::
+              :ok
+              | {:error, reason :: term}
 
   @doc """
   Invoked when a message has been received from RabbitMQ and should be processed and reply with a response
@@ -165,26 +172,26 @@ defmodule ExRabbitMQ.RPC.Server do
     needs to be done at later time, use the `respond/2` or `respond/3` for doing that.
   """
   @callback handle_request(payload :: binary, metadata :: map, state :: term) ::
-    {:respond, response :: binary, new_state} |
-    {:ack, new_state} |
-    {:reject, new_state} |
-    {:noreply, new_state} |
-    {:noreply, new_state, timeout | :hibernate} |
-    {:stop, reason :: term, new_state}
-    when new_state: term
+              {:respond, response :: binary, new_state}
+              | {:ack, new_state}
+              | {:reject, new_state}
+              | {:noreply, new_state}
+              | {:noreply, new_state, timeout | :hibernate}
+              | {:stop, reason :: term, new_state}
+            when new_state: term
 
   defmacro __using__(_) do
     quote location: :keep do
-
       @behaviour ExRabbitMQ.RPC.Server
 
       use ExRabbitMQ.Consumer, GenServer
 
       alias AMQP.Basic
+      alias ExRabbitMQ.State
 
       @doc false
-      def setup_server(connection_config, queue_config, state) do
-        xrmq_init(connection_config, queue_config, state)
+      def setup_server(connection_config, session_config, state) do
+        xrmq_init(connection_config, session_config, state)
       end
 
       @doc false
@@ -208,10 +215,8 @@ defmodule ExRabbitMQ.RPC.Server do
           timestamp: DateTime.utc_now() |> DateTime.to_unix(:millisecond)
         ]
 
-        with \
-          {:ok, channel} <- get_channel(),
-          :ok <- Basic.publish(channel, "", reply_to, payload, opts)
-        do
+        with {:ok, channel} <- get_channel(),
+             :ok <- Basic.publish(channel, "", reply_to, payload, opts) do
           :ok
         else
           {:error, reason} -> {:error, reason}
@@ -227,25 +232,27 @@ defmodule ExRabbitMQ.RPC.Server do
             respond(response, metadata)
             xrmq_basic_ack(delivery_tag, state)
             {:noreply, state}
+
           {:ack, state} ->
             xrmq_basic_ack(delivery_tag, state)
             {:noreply, state}
+
           {:reject, state} ->
             xrmq_basic_reject(delivery_tag, state)
             {:noreply, state}
-          other -> other
+
+          other ->
+            other
         end
       end
 
       # Gets the channel information for the process dictionary.
       defp get_channel do
-        case xrmq_get_channel_info() do
+        case State.get_channel_info() do
           {channel, _} when channel != nil -> {:ok, channel}
           _ -> {:error, :no_channel}
         end
       end
-
     end
   end
-
 end

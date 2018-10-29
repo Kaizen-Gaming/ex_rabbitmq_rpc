@@ -54,7 +54,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
   @type response :: {:ok, payload :: String.t()} | {:error, reason :: term}
 
-  @type connection :: atom | %ExRabbitMQ.Connection.Config{}
+  @type connection :: atom | %ExRabbitMQ.Config.Connection{}
 
   @type result :: {:ok, state} | {:error, reason :: term, state}
 
@@ -87,7 +87,7 @@ defmodule ExRabbitMQ.RPC.Client do
     port: 5672
   ```
 
-  The parameter `connection_config` can also be set to the struct `ExRabbitMQ.Connection.Config` which allows
+  The parameter `connection_config` can also be set to the struct `ExRabbitMQ.Config.Connection` which allows
   to programatically configure the connection without config.exs.
 
   The parameter `state` is the state of the `GenServer` process.
@@ -95,30 +95,41 @@ defmodule ExRabbitMQ.RPC.Client do
   The optional parameter `opts` provides additional options for setting up the RabbitMQ client.
   The available options are:
 
-  * `:queue` - specifies a custom Queue configuration. If set to an atom, the configuration will be loaded from the
-    application's config.exs under the app key :exrabbitmq,
-    eg. if the value is set to `:default_queue`, then the config.exs should have configuration like the following:
+  * `:session_config` - specifies a custom configuration for setting up the queue.
+    If set to an atom, the configuration will be loaded from the application's config.exs under the app key :exrabbitmq,
+    eg. if the value is set to `:my_rpc_queue`, then the config.exs should have configuration like the following:
 
     ```elixir
-    config :exrabbitmq, :default_queue,
-      queue: "test_queue",
-      queue_opts: [durable: true],
-      consume_opts: [no_ack: true]
+    config :exrabbitmq, :my_rpc_queue,
+      queue: "my_rpc_queue",
+      consume_opts: [no_ack: true],
+      declarations: [
+        {:queue, [name: "my_rpc_queue", opts: [durable: true]]}
+      ]
     ```
 
-    If not set, then a temporary queue on RabbitMQ just for receiving message, that will be deleted when the channel
-    is down. The configuration of the queue will be:
+    If set to a `ExRabbitMQ.Consumer.SessionConfig` struct, then it will use it as-is.
+
+    If not set, then a temporary queue will be declared on RabbitMQ just for receiving messages, 
+    which will be deleted when the channel is down. The configuration will be:
 
     ```elixir
-    %QueueConfig{
-      queue: "rpc.gen-" <> UUID.uuid4(),
-      queue_opts: [exclusive: true, auto_delete: true],
-      consume_opts: [no_ack: false]
+    queue_name = queue_prefix <> UUID.uuid4()
+
+    %ExRabbitMQ.Config.Session{
+      queue: queue_name,
+      consume_opts: [no_ack: false],
+      declarations: [
+        {:queue, %ExRabbitMQ.Config.Queue{
+          name: queue_name,
+          opts: [exclusive: true, auto_delete: true]
+        }}
+      ]
     }
     ```
 
   * `:queue_prefix` - allows to specify the prefix of the generated queue name, which by default is `rpc.gen-`.
-    If the `:queue` option is set, this setting will be ignored.
+    If the `:session` option is set, this setting will be ignored.
 
   The return of the function can be `{:ok, state}` when the consumer has been successfully registered or on error the
   tuple `{:error, reason, state}`.
@@ -201,9 +212,9 @@ defmodule ExRabbitMQ.RPC.Client do
 
       @doc false
       def setup_client(connection_config, state, opts \\ []) do
-        queue_config = Options.get_queue_config(opts)
+        session_config = Options.get_session_config(opts)
 
-        xrmq_init(connection_config, queue_config, state)
+        xrmq_init(connection_config, session_config, state)
       end
 
       @doc false
@@ -267,7 +278,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
       # Gets the channel information for the process dictionary.
       defp get_channel do
-        case xrmq_get_channel_info() do
+        case ExRabbitMQ.State.get_channel_info() do
           {channel, _} when channel != nil -> {:ok, channel}
           _ -> {:error, :no_channel}
         end
@@ -275,7 +286,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
       # Returns the queue name for receiving the replies.
       defp get_reply_to_queue do
-        case xrmq_get_queue_config() do
+        case ExRabbitMQ.State.get_session_config() do
           %{queue: queue} when queue != nil or queue != "" -> {:ok, queue}
           _ -> {:error, :no_queue}
         end
