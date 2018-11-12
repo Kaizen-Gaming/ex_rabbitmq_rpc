@@ -37,7 +37,7 @@ defmodule ExRabbitMQ.RPC.Client do
     end
 
     def handle_cast({:request_something, queue, value}, state) do
-      payload = Poison.encode!(value)
+      payload = Jason.encode!(value)
       {:ok, _correlation_id} = request(payload, "", queue)
       {:noreply, state}
     end
@@ -110,7 +110,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
     If set to a `ExRabbitMQ.Consumer.SessionConfig` struct, then it will use it as-is.
 
-    If not set, then a temporary queue will be declared on RabbitMQ just for receiving messages, 
+    If not set, then a temporary queue will be declared on RabbitMQ just for receiving messages,
     which will be deleted when the channel is down. The configuration will be:
 
     ```elixir

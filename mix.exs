@@ -23,10 +23,9 @@ defmodule ExRabbitMQ.RPC.Mixfile do
       {:uuid, "~> 1.1"},
       # {:exrabbitmq, "~> 2.11"},
       {:exrabbitmq, github: "StoiximanServices/exrabbitmq", branch: "multiple_declarations"},
-      {:credo, "~> 0.8", only: [:dev, :test], runtime: false},
+      {:credo, "~> 0.10.2", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
-      {:ex_doc, "~> 0.19", only: [:dev], runtime: false},
-      {:poison, "~> 3.1", runtime: false}
+      {:ex_doc, "~> 0.19", only: [:dev], runtime: false}
     ]
   end
 end
