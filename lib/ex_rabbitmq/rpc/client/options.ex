@@ -15,25 +15,51 @@ defmodule ExRabbitMQ.RPC.Client.Options do
   Returns the `ExRabbitMQ.Config.Session` configuration for the `reply-to` queue.
   """
   def get_session_config(opts) do
+    case Keyword.get(opts, :session, nil) do
+      nil ->
+        get_default_session_config(opts)
+
+      session ->
+        session
+    end
+  end
+
+  # Returns the default session configuration that declares the `reply-to` queue
+  # plus any extra declarations from the :declarations option.
+  defp get_default_session_config(opts) do
     queue_prefix = Keyword.get(opts, :queue_prefix, @default_queue_prefix)
     queue_name = queue_prefix <> uuid4()
 
-    opts[:session] ||
-      %Session{
-        queue: queue_name,
-        consume_opts: [no_ack: false],
-        declarations: [
-          {:queue, %Queue{
-            name: queue_name,
-            opts: [exclusive: true, auto_delete: true]
-          }}
-        ]
-      }
+    declarations = [
+      {:queue,
+       %Queue{
+         name: queue_name,
+         opts: [exclusive: true, auto_delete: true]
+       }}
+    ]
+
+    %Session{
+      queue: queue_name,
+      consume_opts: [no_ack: false],
+      declarations: get_extra_declarations(opts) ++ declarations
+    }
+  end
+
+  # Returns a list with any extra declarations that were defined in the `:declaration` option
+  defp get_extra_declarations(opts) do
+    case Keyword.get(opts, :declarations, []) do
+      session_config_key when is_atom(session_config_key) ->
+        %{declarations: declarations} = Session.get(session_config_key)
+        declarations
+
+      declarations when is_list(declarations) ->
+        declarations
+    end
   end
 
   @doc """
   Returns the `AMQP.Basic.publish` options.
-  
+
   Sets the options for `correlation_id`, `reply_to` and `expiration` as specified in the arguments.
   Also set the `timestamp` to the current time.
   """
@@ -51,7 +77,7 @@ defmodule ExRabbitMQ.RPC.Client.Options do
 
   @doc """
   Returns the correlation_id for the request.
-  
+
   Defaults to a random generated one.
   """
   def get_correlation_id(opts), do: do_get_correlation_id(opts[:correlation_id])
@@ -61,7 +87,7 @@ defmodule ExRabbitMQ.RPC.Client.Options do
 
   @doc """
   Returns the expiration time in milliseconds for the request.
-  
+
   Defaults to `5000` milliseconds.
   """
   def get_expiration(opts), do: do_get_expiration(opts[:expiration])
@@ -72,7 +98,7 @@ defmodule ExRabbitMQ.RPC.Client.Options do
 
   @doc """
   Returns the `from` process that the response should be replied to.
-  
+
   Defaults to `nil`.
   """
   def get_call_from(opts), do: do_get_call_from(opts[:call_from])

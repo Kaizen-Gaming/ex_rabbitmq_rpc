@@ -95,8 +95,8 @@ defmodule ExRabbitMQ.RPC.Client do
   The optional parameter `opts` provides additional options for setting up the RabbitMQ client.
   The available options are:
 
-  * `:session_config` - specifies a custom configuration for setting up the queue.
-    If set to an atom, the configuration will be loaded from the application's config.exs under the app key :exrabbitmq,
+  * `:session` - specifies a custom configuration for setting up the queue.
+    If set to an atom, the configuration will be loaded from the application's config.exs under the app key `:exrabbitmq`,
     eg. if the value is set to `:my_rpc_queue`, then the config.exs should have configuration like the following:
 
     ```elixir
@@ -129,7 +129,13 @@ defmodule ExRabbitMQ.RPC.Client do
     ```
 
   * `:queue_prefix` - allows to specify the prefix of the generated queue name, which by default is `rpc.gen-`.
-    If the `:session` option is set, this setting will be ignored.
+    If the `:session` option is set, this option will be ignored.
+
+  * `:declarations` - allows to define extra declarations for the default session configuration.
+    The `:declarations` option can either be an atom or a list.
+    When set to an atom, the declarations will be loaded from the application's config.exs file under the app key
+    `:exrabbitmq`. When a list with declarations then these will be appended to the default one.
+    If the `:session` option is set, this option will be ignored.
 
   The return of the function can be `{:ok, state}` when the consumer has been successfully registered or on error the
   tuple `{:error, reason, state}`.
