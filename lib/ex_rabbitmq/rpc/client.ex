@@ -50,20 +50,16 @@ defmodule ExRabbitMQ.RPC.Client do
   ```
   """
 
-  @type state :: term
-
-  @type response :: {:ok, payload :: String.t()} | {:error, reason :: term}
+  @type response :: {:ok, payload :: String.t()} | {:error, term}
 
   @type connection :: atom | %ExRabbitMQ.Config.Connection{}
 
-  @type result :: {:ok, state} | {:error, reason :: term, state}
+  @type result :: {:ok, term} | {:error, term, term}
 
-  @type request_result :: {:ok, correlation_id :: String.t()} | {:error, reason :: term}
+  @type request_result :: {:ok, String.t()} | {:error, term}
 
   @type response_result ::
-          {:noreply, state}
-          | {:noreply, state, timeout | :hibernate}
-          | {:stop, reason :: term, state}
+          {:noreply, term} | {:noreply, term, timeout | :hibernate} | {:stop, term, term}
 
   @doc """
   Opens a RabbitMQ connection & channel and configures the queue for receiving responses.
@@ -143,7 +139,7 @@ defmodule ExRabbitMQ.RPC.Client do
   *For more information about the connection & queue configuration, please check the documentation of the function
   `ExRabbitMQ.Consumer.xrmq_init/3`.*
   """
-  @callback setup_client(connection_config :: connection, state, opts :: keyword) :: result
+  @callback setup_client(connection, term, keyword) :: result
 
   @doc """
   Publishes a request message with `payload` to specified exchange and queue.
@@ -178,12 +174,7 @@ defmodule ExRabbitMQ.RPC.Client do
   * `{:error, reason}` - the request has failed to be published with the returned `reason`.
 
   """
-  @callback request(
-              payload :: binary,
-              exchange :: String.t(),
-              routing_key :: String.t(),
-              opts :: keyword
-            ) :: request_result
+  @callback request(binary, String.t(), String.t(), keyword) :: request_result
 
   @doc """
   Invoked when a message has been received from RabbitMQ which is a response message from the RPC server for a request
@@ -204,8 +195,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
   This callback should return a value, as in `GenServer.handle_info/2`.
   """
-  @callback handle_response(response :: response, correlation_id :: String.t(), state) ::
-              response_result
+  @callback handle_response(response, String.t(), term) :: response_result
 
   defmacro __using__(_) do
     quote location: :keep do
@@ -217,6 +207,7 @@ defmodule ExRabbitMQ.RPC.Client do
 
       @doc false
       def setup_client(connection_config, state, opts \\ []) do
+        IO.inspect(opts)
         session_config = Options.get_session_config(opts)
 
         xrmq_init(connection_config, session_config, state)

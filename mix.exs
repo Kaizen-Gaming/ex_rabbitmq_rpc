@@ -4,8 +4,8 @@ defmodule ExRabbitMQ.RPC.Mixfile do
   def project do
     [
       app: :ex_rabbitmq_rpc,
-      version: "2.0.0",
-      elixir: "~> 1.6",
+      version: "2.0.1",
+      elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       name: "ExRabbitMQ RPC",
@@ -20,12 +20,11 @@ defmodule ExRabbitMQ.RPC.Mixfile do
 
   defp deps do
     [
-      {:uuid, "~> 1.1"},
-      # {:exrabbitmq, "~> 2.11"},
-      {:exrabbitmq, github: "StoiximanServices/exrabbitmq", branch: "multiple_declarations"},
-      {:credo, "~> 0.10.2", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
-      {:ex_doc, "~> 0.19", only: [:dev], runtime: false}
+      {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.0.0-rc.4", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.19.3", only: :dev, runtime: false},
+      {:exrabbitmq, github: "dennisxtria/exrabbitmq", branch: "update"},
+      {:uuid, "~> 1.1"}
     ]
   end
 end

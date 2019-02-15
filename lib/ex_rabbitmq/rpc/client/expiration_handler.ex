@@ -10,7 +10,7 @@ defmodule ExRabbitMQ.RPC.Client.ExpirationHandler do
   process after `expiration` milliseconds, so that we get notified when the request message
   on RabbitMQ has also expired.
   """
-  @spec set(correlation_id :: String.t(), expiration :: number) :: :ok
+  @spec set(String.t(), number) :: :ok
   def set(correlation_id, expiration) when expiration > 0 do
     ref = Process.send_after(self(), {:expired, correlation_id}, expiration)
     expirations = process_get()
