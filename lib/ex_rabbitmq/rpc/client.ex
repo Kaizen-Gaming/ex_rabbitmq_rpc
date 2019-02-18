@@ -207,7 +207,6 @@ defmodule ExRabbitMQ.RPC.Client do
 
       @doc false
       def setup_client(connection_config, state, opts \\ []) do
-        IO.inspect(opts)
         session_config = Options.get_session_config(opts)
 
         xrmq_init(connection_config, session_config, state)
