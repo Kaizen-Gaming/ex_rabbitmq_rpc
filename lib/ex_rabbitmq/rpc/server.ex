@@ -91,13 +91,8 @@ defmodule ExRabbitMQ.RPC.Server do
   *For more information about the usage, also check the documentation of the function
   `ExRabbitMQ.Consumer.xrmq_init/3`.*
   """
-  @callback setup_server(
-              connection_config :: connection,
-              session_config :: session,
-              state :: term
-            ) ::
-              {:ok, new_state}
-              | {:error, reason :: term, new_state}
+  @callback setup_server(connection, session, term) ::
+              {:ok, new_state} | {:error, term, new_state}
             when new_state: term,
                  connection: atom | %ExRabbitMQ.Config.Connection{},
                  session: atom | %ExRabbitMQ.Config.Session{}
@@ -123,12 +118,8 @@ defmodule ExRabbitMQ.RPC.Server do
   * `:ok` - when the response has been send successfully,
   * `{:error, reason}` - then the response has failed to be send with the returned `reason`.
   """
-  @callback respond(
-              payload :: binary,
-              metadata :: %{reply_to: String.t(), correlation_id: String.t()}
-            ) ::
-              :ok
-              | {:error, reason :: term}
+  @callback respond(binary, %{reply_to: String.t(), correlation_id: String.t()}) ::
+              :ok | {:error, term}
 
   @doc """
   Responds to a request that was received through the `c:handle_request/3` callback.
@@ -145,9 +136,7 @@ defmodule ExRabbitMQ.RPC.Server do
 
   *For more information about the usage, also check the documentation of the function `respond/2`.*
   """
-  @callback respond(payload :: binary, routing_key :: String.t(), correlation_id :: String.t()) ::
-              :ok
-              | {:error, reason :: term}
+  @callback respond(binary, String.t(), String.t()) :: :ok | {:error, term}
 
   @doc """
   Invoked when a message has been received from RabbitMQ and should be processed and reply with a response
@@ -171,13 +160,13 @@ defmodule ExRabbitMQ.RPC.Server do
     be send back or acknowledge or reject the message, and needs to be handled by the implementation. If the response
     needs to be done at later time, use the `respond/2` or `respond/3` for doing that.
   """
-  @callback handle_request(payload :: binary, metadata :: map, state :: term) ::
-              {:respond, response :: binary, new_state}
+  @callback handle_request(binary, map, term) ::
+              {:respond, binary, new_state}
               | {:ack, new_state}
               | {:reject, new_state}
               | {:noreply, new_state}
               | {:noreply, new_state, timeout | :hibernate}
-              | {:stop, reason :: term, new_state}
+              | {:stop, term, new_state}
             when new_state: term
 
   defmacro __using__(_) do
