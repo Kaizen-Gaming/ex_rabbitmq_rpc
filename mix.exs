@@ -4,7 +4,7 @@ defmodule ExRabbitMQ.RPC.Mixfile do
   def project do
     [
       app: :ex_rabbitmq_rpc,
-      version: "1.1.0",
+      version: "1.1.1",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
