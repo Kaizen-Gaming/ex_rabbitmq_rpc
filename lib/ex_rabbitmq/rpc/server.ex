@@ -155,6 +155,7 @@ defmodule ExRabbitMQ.RPC.Server do
   * `{:respond, response, new_state}` - Will respond (publish) back to the origin of the request with a message with
     the `response` payload and will acknowledge the message on broker.
   * `{:ack, new_state}` - Will not respond back but will acknowledge the message on broker.
+  * `{:requeue, new_state}` - Will not respond back and will requeue the message on broker.
   * `{:reject, new_state}` - Will not respond back and will reject the message on broker.
   * Any other value will be passed as the return value of the `GenServer.handle_info/2`. In this case, no response will
     be send back or acknowledge or reject the message, and needs to be handled by the implementation. If the response
@@ -222,8 +223,12 @@ defmodule ExRabbitMQ.RPC.Server do
             xrmq_basic_ack(delivery_tag, state)
             {:noreply, state}
 
+          {:requeue, state} ->
+            xrmq_basic_reject(delivery_tag, [requeue: true], state)
+            {:noreply, state}
+
           {:reject, state} ->
-            xrmq_basic_reject(delivery_tag, state)
+            xrmq_basic_reject(delivery_tag, [requeue: false], state)
             {:noreply, state}
 
           other ->
