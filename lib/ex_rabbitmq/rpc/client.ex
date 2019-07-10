@@ -258,9 +258,8 @@ defmodule ExRabbitMQ.RPC.Client do
         {payload, exchange, routing_key, opts} = message
         opts = Options.set_call_from(opts, from)
 
-        with {:ok, _correlation_id} <- request(payload, exchange, routing_key, opts) do
-          {:noreply, state}
-        else
+        case request(payload, exchange, routing_key, opts) do
+          {:ok, _correlation_id} -> {:noreply, state}
           error -> {:reply, error, state}
         end
       end
