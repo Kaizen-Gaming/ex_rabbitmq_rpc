@@ -189,7 +189,10 @@ defmodule ExRabbitMQ.RPC.Server do
       end
 
       @doc false
-      def respond(_payload, reply_to, _correlation_id) when is_nil(reply_to) or reply_to == "" do
+      # When a receive message has no property `reply_to` then the AMQP library sets the value to `:undefined`
+      # The `nil` or empty string are valid only when the developer calls explicitely the `response/3`
+      def respond(_payload, reply_to, _correlation_id)
+          when is_nil(reply_to) or reply_to == "" or reply_to == :undefined do
         {:error, :no_reply_to}
       end
 
