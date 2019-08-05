@@ -203,13 +203,13 @@ defmodule ExRabbitMQ.RPC.Client do
 
       alias ExRabbitMQ.RPC.Client.{ExpirationHandler, Options, RequestTracking}
 
-      use ExRabbitMQ.Consumer, GenServer
+      use ExRabbitMQ.Consumer
 
       @doc false
       def setup_client(connection_config, state, opts \\ []) do
         session_config = Options.get_session_config(opts)
 
-        xrmq_init(connection_config, session_config, state)
+        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true)}
       end
 
       @doc false
@@ -221,6 +221,8 @@ defmodule ExRabbitMQ.RPC.Client do
         with {:ok, channel} <- get_channel(),
              {:ok, reply_to} <- get_reply_to_queue(),
              opts <- Options.get_publish_options(opts, correlation_id, reply_to, expiration),
+             # TODO: check if we can use xrmq_basic_publish here to use accounting
+             # TODO: perhaps we could use a pool of producers for this functionality
              :ok <- AMQP.Basic.publish(channel, exchange, routing_key, payload, opts),
              :ok <- ExpirationHandler.set(correlation_id, expiration),
              :ok <- RequestTracking.set(correlation_id, from) do
@@ -270,6 +272,12 @@ defmodule ExRabbitMQ.RPC.Client do
       def xrmq_basic_deliver(payload, %{correlation_id: correlation_id}, state) do
         do_handle_response({:ok, payload}, correlation_id, state)
       end
+
+      def xrmq_on_hibernation_threshold_reached({:noreply, state}) do
+        {:noreply, state, :hibernate}
+      end
+
+      def xrmq_on_hibernation_threshold_reached(callback_result), do: callback_result
 
       # Gets the channel information for the process dictionary.
       defp get_channel do

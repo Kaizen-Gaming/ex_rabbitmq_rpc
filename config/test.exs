@@ -1,11 +1,18 @@
 import Config
 
-config :logger, level: :error
+config :logger, :level, :error
+
+config :exrabbitmq, :accounting_enabled, true
+
+config :exrabbitmq, :message_buffering_enabled, true
+
+config :exrabbitmq, :logging_enabled, true
 
 config :exrabbitmq, :test_connection,
   username: "guest",
   password: "guest",
-  host: "localhost"
+  host: "localhost",
+  pool: [size: 1, max_overflow: 0]
 
 config :exrabbitmq, :test_session,
   queue: "ex_rabbitmq_rpc_test",
@@ -14,6 +21,6 @@ config :exrabbitmq, :test_session,
     {:queue,
      [
        name: "ex_rabbitmq_rpc_test",
-       queue_opts: [auto_delete: true]
+       opts: [auto_delete: true]
      ]}
   ]

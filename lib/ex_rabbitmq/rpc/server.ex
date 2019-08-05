@@ -173,14 +173,14 @@ defmodule ExRabbitMQ.RPC.Server do
     quote location: :keep do
       @behaviour ExRabbitMQ.RPC.Server
 
-      use ExRabbitMQ.Consumer, GenServer
+      use ExRabbitMQ.Consumer
 
       alias AMQP.Basic
       alias ExRabbitMQ.State
 
       @doc false
       def setup_server(connection_config, session_config, state) do
-        xrmq_init(connection_config, session_config, state)
+        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true)}
       end
 
       @doc false
@@ -200,10 +200,12 @@ defmodule ExRabbitMQ.RPC.Server do
       def respond(payload, reply_to, correlation_id) do
         opts = [
           correlation_id: correlation_id || :undefined,
-          timestamp: DateTime.utc_now() |> DateTime.to_unix(:millisecond)
+          timestamp: DateTime.to_unix(DateTime.utc_now(), :millisecond)
         ]
 
         with {:ok, channel} <- get_channel(),
+             # TODO: check if we can use xrmq_basic_publish here to use accounting
+             # TODO: perhaps we could use a pool of producers for this functionality
              :ok <- Basic.publish(channel, "", reply_to, payload, opts) do
           :ok
         else
@@ -233,6 +235,12 @@ defmodule ExRabbitMQ.RPC.Server do
             other
         end
       end
+
+      def xrmq_on_hibernation_threshold_reached({:noreply, state}) do
+        {:noreply, state, :hibernate}
+      end
+
+      def xrmq_on_hibernation_threshold_reached(callback_result), do: callback_result
 
       # Gets the channel information for the process dictionary.
       defp get_channel do

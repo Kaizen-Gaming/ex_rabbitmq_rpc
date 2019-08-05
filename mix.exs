@@ -4,7 +4,7 @@ defmodule ExRabbitMQ.RPC.Mixfile do
   def project do
     [
       app: :ex_rabbitmq_rpc,
-      version: "2.2.0",
+      version: "2.3.0",
       elixir: "~> 1.9",
       start_permanent: Mix.env() not in [:dev, :test],
       deps: deps(),
@@ -23,7 +23,7 @@ defmodule ExRabbitMQ.RPC.Mixfile do
       {:credo, "~> 1.1", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0.0-rc.6", only: :dev, runtime: false},
       {:ex_doc, "~> 0.20.2", only: :dev, runtime: false},
-      {:exrabbitmq, github: "StoiximanServices/exrabbitmq", tag: "v3.4.0"},
+      {:exrabbitmq, github: "StoiximanServices/exrabbitmq", tag: "v3.5.0"},
       {:uuid, "~> 1.1"}
     ]
   end

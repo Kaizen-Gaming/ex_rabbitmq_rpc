@@ -15,6 +15,9 @@ defmodule ExRabbitMQ.RPCTest do
     {:ok, client} = TestClient.start()
     {:ok, server} = TestServer.start()
 
+    assert_receive :connected, @grace
+    assert_receive :connected, @grace
+
     :ok = TestClient.test_request(client, delay, correlation_id)
 
     assert_receive {:send_request, {:ok, ^correlation_id}}
@@ -32,6 +35,9 @@ defmodule ExRabbitMQ.RPCTest do
 
     {:ok, client} = TestClient.start()
     {:ok, server} = TestServer.start()
+
+    assert_receive :connected, @grace
+    assert_receive :connected, @grace
 
     :ok = TestClient.test_request(client, delay, correlation_id)
 
@@ -55,6 +61,7 @@ defmodule TestClient do
     GenServer.start(__MODULE__, test_pid: self())
   end
 
+  @impl true
   def init(test_pid: test_pid) do
     setup_client(:test_connection, %{test_pid: test_pid})
   end
@@ -63,6 +70,7 @@ defmodule TestClient do
     GenServer.cast(client, {:test_request, payload, correlation_id})
   end
 
+  @impl true
   def handle_cast({:test_request, payload, correlation_id}, %{test_pid: test_pid} = state) do
     queue = Application.get_env(:exrabbitmq, :test_session)[:queue]
     payload = to_string(payload)
@@ -71,15 +79,23 @@ defmodule TestClient do
     {:noreply, state}
   end
 
+  @impl true
   def handle_response({:ok, payload}, correlation_id, %{test_pid: test_pid} = state) do
     {parsed, _} = Integer.parse(payload)
     send(test_pid, {:received_response, correlation_id, {:ok, parsed}})
     {:noreply, state}
   end
 
+  @impl true
   def handle_response(result, correlation_id, %{test_pid: test_pid} = state) do
     send(test_pid, {:received_response, correlation_id, result})
     {:noreply, state}
+  end
+
+  def xrmq_on_try_init_success(%{test_pid: test_pid} = state) do
+    send(test_pid, :connected)
+
+    state
   end
 end
 
@@ -91,10 +107,12 @@ defmodule TestServer do
     GenServer.start(__MODULE__, test_pid: self())
   end
 
+  @impl true
   def init(test_pid: test_pid) do
     setup_server(:test_connection, :test_session, %{test_pid: test_pid})
   end
 
+  @impl true
   def handle_request(bin_payload, metadata, state) do
     %{correlation_id: correlation_id} = metadata
     %{test_pid: test_pid} = state
@@ -110,13 +128,21 @@ defmodule TestServer do
     end
   end
 
+  @impl true
   def handle_info({:basic_consume_ok, _}, state) do
     {:noreply, state}
   end
 
+  @impl true
   def handle_info({:respond, %{delivery_tag: tag} = metadata, payload}, state) do
     respond(payload, metadata)
     xrmq_basic_ack(tag, state)
     {:noreply, state}
+  end
+
+  def xrmq_on_try_init_success(%{test_pid: test_pid} = state) do
+    send(test_pid, :connected)
+
+    state
   end
 end
