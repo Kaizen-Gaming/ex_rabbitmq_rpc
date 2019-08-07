@@ -95,7 +95,7 @@ defmodule TestClient do
   def xrmq_on_try_init_success(%{test_pid: test_pid} = state) do
     send(test_pid, :connected)
 
-    state
+    {:cont, state}
   end
 end
 
@@ -143,6 +143,6 @@ defmodule TestServer do
   def xrmq_on_try_init_success(%{test_pid: test_pid} = state) do
     send(test_pid, :connected)
 
-    state
+    {:cont, state}
   end
 end
