@@ -180,7 +180,7 @@ defmodule ExRabbitMQ.RPC.Server do
 
       @doc false
       def setup_server(connection_config, session_config, state) do
-        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true)}
+        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true, nil)}
       end
 
       @doc false

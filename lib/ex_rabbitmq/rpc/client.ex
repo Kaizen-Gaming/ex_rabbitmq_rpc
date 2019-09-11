@@ -209,7 +209,7 @@ defmodule ExRabbitMQ.RPC.Client do
       def setup_client(connection_config, state, opts \\ []) do
         session_config = Options.get_session_config(opts)
 
-        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true)}
+        {:ok, state, ExRabbitMQ.continue_tuple_try_init(connection_config, session_config, true, nil)}
       end
 
       @doc false
